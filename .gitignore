@@ -1,0 +1,13 @@
+inject_funcs.o
+tracer.bak.o
+tracer.so
+vectoradd/configs
+vectoradd/memory_traces
+vectoradd/sass_traces
+vectoradd/app_config.py
+vectoradd/*.tar.bz2
+vectoradd/vectoradd
+vectoradd/*.ncu-rep
+vectoradd/*.o
+cusparse_spmm_csr_SP_CC
+.git.PPT
