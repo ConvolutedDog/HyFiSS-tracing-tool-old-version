@@ -232,217 +232,6 @@ int main(int argc, char *argv[]) {
         }                                                                                          \
     } while (0)
 
-// memory alignment
-#define ALIGN_TO(A, B) (((A + B - 1) / B) * B)
-
-// device memory pitch alignment
-static const size_t device_alignment = 32;
-
-// type traits
-template <typename T> struct traits;
-
-template <> struct traits<float> {
-    // scalar type
-    typedef float T;
-    typedef T S;
-
-    static constexpr T zero = 0.f;
-    static constexpr cudaDataType cuda_data_type = CUDA_R_32F;
-
-    inline static S abs(T val) { return fabs(val); }
-
-    template <typename RNG> inline static T rand(RNG &gen) { return (S)gen(); }
-
-    inline static T add(T a, T b) { return a + b; }
-
-    inline static T mul(T v, double f) { return v * f; }
-};
-
-template <> struct traits<double> {
-    // scalar type
-    typedef double T;
-    typedef T S;
-
-    static constexpr T zero = 0.;
-    static constexpr cudaDataType cuda_data_type = CUDA_R_64F;
-
-    inline static S abs(T val) { return fabs(val); }
-
-    template <typename RNG> inline static T rand(RNG &gen) { return (S)gen(); }
-
-    inline static T add(T a, T b) { return a + b; }
-
-    inline static T mul(T v, double f) { return v * f; }
-};
-
-template <> struct traits<cuFloatComplex> {
-    // scalar type
-    typedef float S;
-    typedef cuFloatComplex T;
-
-    static constexpr T zero = {0.f, 0.f};
-    static constexpr cudaDataType cuda_data_type = CUDA_C_32F;
-
-    inline static S abs(T val) { return cuCabsf(val); }
-
-    template <typename RNG> inline static T rand(RNG &gen) {
-        return make_cuFloatComplex((S)gen(), (S)gen());
-    }
-
-    inline static T add(T a, T b) { return cuCaddf(a, b); }
-    inline static T add(T a, S b) { return cuCaddf(a, make_cuFloatComplex(b, 0.f)); }
-
-    inline static T mul(T v, double f) { return make_cuFloatComplex(v.x * f, v.y * f); }
-};
-
-template <> struct traits<cuDoubleComplex> {
-    // scalar type
-    typedef double S;
-    typedef cuDoubleComplex T;
-
-    static constexpr T zero = {0., 0.};
-    static constexpr cudaDataType cuda_data_type = CUDA_C_64F;
-
-    inline static S abs(T val) { return cuCabs(val); }
-
-    template <typename RNG> inline static T rand(RNG &gen) {
-        return make_cuDoubleComplex((S)gen(), (S)gen());
-    }
-
-    inline static T add(T a, T b) { return cuCadd(a, b); }
-    inline static T add(T a, S b) { return cuCadd(a, make_cuDoubleComplex(b, 0.)); }
-
-    inline static T mul(T v, double f) { return make_cuDoubleComplex(v.x * f, v.y * f); }
-};
-
-template <typename T> void print_matrix(const int &m, const int &n, const T *A, const int &lda);
-
-template <> void print_matrix(const int &m, const int &n, const float *A, const int &lda) {
-    for (int i = 0; i < m; i++) {
-        for (int j = 0; j < n; j++) {
-            std::printf("%0.2f ", A[j * lda + i]);
-        }
-        std::printf("\n");
-    }
-}
-
-template <> void print_matrix(const int &m, const int &n, const double *A, const int &lda) {
-    for (int i = 0; i < m; i++) {
-        for (int j = 0; j < n; j++) {
-            std::printf("%0.2f ", A[j * lda + i]);
-        }
-        std::printf("\n");
-    }
-}
-
-template <> void print_matrix(const int &m, const int &n, const cuComplex *A, const int &lda) {
-    for (int i = 0; i < m; i++) {
-        for (int j = 0; j < n; j++) {
-            std::printf("%0.2f + %0.2fj ", A[j * lda + i].x, A[j * lda + i].y);
-        }
-        std::printf("\n");
-    }
-}
-
-template <>
-void print_matrix(const int &m, const int &n, const cuDoubleComplex *A, const int &lda) {
-    for (int i = 0; i < m; i++) {
-        for (int j = 0; j < n; j++) {
-            std::printf("%0.2f + %0.2fj ", A[j * lda + i].x, A[j * lda + i].y);
-        }
-        std::printf("\n");
-    }
-}
-
-template <typename T> void normal_print_matrix(const int &m, const int &n, const T *A);
-
-template <> void normal_print_matrix(const int &m, const int &n, const float *A) {
-    for (int i = 0; i < m; i++) {
-        for (int j = 0; j < n; j++) {
-            std::printf("%0.2f ", A[j + i * n]);
-        }
-        std::printf("\n");
-    }
-}
-
-template <> void normal_print_matrix(const int &m, const int &n, const double *A) {
-    for (int i = 0; i < m; i++) {
-        for (int j = 0; j < n; j++) {
-            std::printf("%0.2f ", A[j + i * n]);
-        }
-        std::printf("\n");
-    }
-}
-
-template <typename T> void print_vector(const int &m, const T *A);
-
-template <> void print_vector(const int &m, const float *A) {
-    for (int i = 0; i < m; i++) {
-        std::printf("%0.2f ", A[i]);
-    }
-    std::printf("\n");
-}
-
-template <> void print_vector(const int &m, const double *A) {
-    for (int i = 0; i < m; i++) {
-        std::printf("%0.2f ", A[i]);
-    }
-    std::printf("\n");
-}
-
-template <> void print_vector(const int &m, const cuComplex *A) {
-    for (int i = 0; i < m; i++) {
-        std::printf("%0.2f + %0.2fj ", A[i].x, A[i].y);
-    }
-    std::printf("\n");
-}
-
-template <> void print_vector(const int &m, const cuDoubleComplex *A) {
-    for (int i = 0; i < m; i++) {
-        std::printf("%0.2f + %0.2fj ", A[i].x, A[i].y);
-    }
-    std::printf("\n");
-}
-
-template <typename T> void generate_random_matrix(int m, int n, T **A, int *lda) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<typename traits<T>::S> dis(-1.0, 1.0);
-    auto rand_gen = std::bind(dis, gen);
-
-    *lda = n;
-
-    size_t matrix_mem_size = static_cast<size_t>(*lda * m * sizeof(T));
-    // suppress gcc 7 size warning
-    if (matrix_mem_size <= PTRDIFF_MAX)
-        *A = (T *)malloc(matrix_mem_size);
-    else
-        throw std::runtime_error("Memory allocation size is too large");
-
-    if (*A == NULL)
-        throw std::runtime_error("Unable to allocate host matrix");
-
-    // random matrix and accumulate row sums
-    for (int i = 0; i < m; ++i) {
-        for (int j = 0; j < n; ++j) {
-            T *A_row = (*A) + *lda * i;
-            A_row[j] = traits<T>::rand(rand_gen);
-        }
-    }
-}
-
-// Makes matrix A of size mxn and leading dimension lda diagonal dominant
-template <typename T> void make_diag_dominant_matrix(int m, int n, T *A, int lda) {
-    for (int i = 0; i < std::min(m, n); ++i) {
-        T *A_row = A + lda * i;
-        auto row_sum = traits<typename traits<T>::S>::zero;
-        for (int j = 0; j < n; ++j) {
-            row_sum += traits<T>::abs(A_row[j]);
-        }
-        A_row[i] = traits<T>::add(A_row[i], row_sum);
-    }
-}
-
 // Returns cudaDataType value as defined in library_types.h for the string
 // containing type name
 cudaDataType get_cuda_library_type(std::string type_string) {
@@ -506,6 +295,9 @@ int main(int argc, char *argv[]) {
     int m = 257;
     int k = 1;
     int n = 513; 
+    // int m = 513;
+    // int k = 513;
+    // int n = 513; 
     
     const int lda = k;
     const int ldb = n;
@@ -790,13 +582,6 @@ int main(int argc, char *argv[]) {
     cublasOperation_t transa = CUBLAS_OP_N;
     cublasOperation_t transb = CUBLAS_OP_N;
 
-    // printf("A\n");
-    // normal_print_matrix(m, k, A.data());
-    // printf("=====\n");
-
-    // printf("B\n");
-    // normal_print_matrix(k, n, B.data());
-    // printf("=====\n");
 
     // step 1: create cublas handle, bind a stream 
     CUBLAS_CHECK(cublasCreate(&cublasH1));CUBLAS_CHECK(cublasCreate(&cublasH2));CUBLAS_CHECK(cublasCreate(&cublasH3));CUBLAS_CHECK(cublasCreate(&cublasH4));CUBLAS_CHECK(cublasCreate(&cublasH5));CUBLAS_CHECK(cublasCreate(&cublasH6));CUBLAS_CHECK(cublasCreate(&cublasH7));CUBLAS_CHECK(cublasCreate(&cublasH8));CUBLAS_CHECK(cublasCreate(&cublasH9));CUBLAS_CHECK(cublasCreate(&cublasH10));CUBLAS_CHECK(cublasCreate(&cublasH11));CUBLAS_CHECK(cublasCreate(&cublasH12));CUBLAS_CHECK(cublasCreate(&cublasH13));CUBLAS_CHECK(cublasCreate(&cublasH14));CUBLAS_CHECK(cublasCreate(&cublasH15));CUBLAS_CHECK(cublasCreate(&cublasH16));CUBLAS_CHECK(cublasCreate(&cublasH17));CUBLAS_CHECK(cublasCreate(&cublasH18));CUBLAS_CHECK(cublasCreate(&cublasH19));CUBLAS_CHECK(cublasCreate(&cublasH20));CUBLAS_CHECK(cublasCreate(&cublasH21));CUBLAS_CHECK(cublasCreate(&cublasH22));CUBLAS_CHECK(cublasCreate(&cublasH23));CUBLAS_CHECK(cublasCreate(&cublasH24));CUBLAS_CHECK(cublasCreate(&cublasH25));CUBLAS_CHECK(cublasCreate(&cublasH26));CUBLAS_CHECK(cublasCreate(&cublasH27));CUBLAS_CHECK(cublasCreate(&cublasH28));CUBLAS_CHECK(cublasCreate(&cublasH29));CUBLAS_CHECK(cublasCreate(&cublasH30));CUBLAS_CHECK(cublasCreate(&cublasH31));CUBLAS_CHECK(cublasCreate(&cublasH32));CUBLAS_CHECK(cublasCreate(&cublasH33));CUBLAS_CHECK(cublasCreate(&cublasH34));CUBLAS_CHECK(cublasCreate(&cublasH35));CUBLAS_CHECK(cublasCreate(&cublasH36));CUBLAS_CHECK(cublasCreate(&cublasH37));CUBLAS_CHECK(cublasCreate(&cublasH38));CUBLAS_CHECK(cublasCreate(&cublasH39));CUBLAS_CHECK(cublasCreate(&cublasH40));CUBLAS_CHECK(cublasCreate(&cublasH41));CUBLAS_CHECK(cublasCreate(&cublasH42));CUBLAS_CHECK(cublasCreate(&cublasH43));CUBLAS_CHECK(cublasCreate(&cublasH44));CUBLAS_CHECK(cublasCreate(&cublasH45));CUBLAS_CHECK(cublasCreate(&cublasH46));CUBLAS_CHECK(cublasCreate(&cublasH47));CUBLAS_CHECK(cublasCreate(&cublasH48));CUBLAS_CHECK(cublasCreate(&cublasH49));CUBLAS_CHECK(cublasCreate(&cublasH50));CUBLAS_CHECK(cublasCreate(&cublasH51));CUBLAS_CHECK(cublasCreate(&cublasH52));CUBLAS_CHECK(cublasCreate(&cublasH53));CUBLAS_CHECK(cublasCreate(&cublasH54));CUBLAS_CHECK(cublasCreate(&cublasH55));CUBLAS_CHECK(cublasCreate(&cublasH56));CUBLAS_CHECK(cublasCreate(&cublasH57));CUBLAS_CHECK(cublasCreate(&cublasH58));CUBLAS_CHECK(cublasCreate(&cublasH59));CUBLAS_CHECK(cublasCreate(&cublasH60));CUBLAS_CHECK(cublasCreate(&cublasH61));CUBLAS_CHECK(cublasCreate(&cublasH62));CUBLAS_CHECK(cublasCreate(&cublasH63));CUBLAS_CHECK(cublasCreate(&cublasH64));CUBLAS_CHECK(cublasCreate(&cublasH65));CUBLAS_CHECK(cublasCreate(&cublasH66));CUBLAS_CHECK(cublasCreate(&cublasH67));CUBLAS_CHECK(cublasCreate(&cublasH68));CUBLAS_CHECK(cublasCreate(&cublasH69));CUBLAS_CHECK(cublasCreate(&cublasH70));CUBLAS_CHECK(cublasCreate(&cublasH71));CUBLAS_CHECK(cublasCreate(&cublasH72));CUBLAS_CHECK(cublasCreate(&cublasH73));CUBLAS_CHECK(cublasCreate(&cublasH74));CUBLAS_CHECK(cublasCreate(&cublasH75));CUBLAS_CHECK(cublasCreate(&cublasH76));CUBLAS_CHECK(cublasCreate(&cublasH77));CUBLAS_CHECK(cublasCreate(&cublasH78));CUBLAS_CHECK(cublasCreate(&cublasH79));CUBLAS_CHECK(cublasCreate(&cublasH80));CUBLAS_CHECK(cublasCreate(&cublasH81));
@@ -1217,88 +1002,91 @@ int main(int argc, char *argv[]) {
     
 
     // step 3: compute 
-    // cublasHgemm(cublasH1, transa, transb, n, m, k, &alpha, d_b_1, ldb, d_a_1, lda, &beta, d_c_1, ldc);cublasHgemm(cublasH2, transa, transb, n, m, k, &alpha, d_b_2, ldb, d_a_2, lda, &beta, d_c_2, ldc);cublasHgemm(cublasH3, transa, transb, n, m, k, &alpha, d_b_3, ldb, d_a_3, lda, &beta, d_c_3, ldc);cublasHgemm(cublasH4, transa, transb, n, m, k, &alpha, d_b_4, ldb, d_a_4, lda, &beta, d_c_4, ldc);cublasHgemm(cublasH5, transa, transb, n, m, k, &alpha, d_b_5, ldb, d_a_5, lda, &beta, d_c_5, ldc);cublasHgemm(cublasH6, transa, transb, n, m, k, &alpha, d_b_6, ldb, d_a_6, lda, &beta, d_c_6, ldc);cublasHgemm(cublasH7, transa, transb, n, m, k, &alpha, d_b_7, ldb, d_a_7, lda, &beta, d_c_7, ldc);cublasHgemm(cublasH8, transa, transb, n, m, k, &alpha, d_b_8, ldb, d_a_8, lda, &beta, d_c_8, ldc);cublasHgemm(cublasH9, transa, transb, n, m, k, &alpha, d_b_9, ldb, d_a_9, lda, &beta, d_c_9, ldc);cublasHgemm(cublasH10, transa, transb, n, m, k, &alpha, d_b_10, ldb, d_a_10, lda, &beta, d_c_10, ldc);cublasHgemm(cublasH11, transa, transb, n, m, k, &alpha, d_b_11, ldb, d_a_11, lda, &beta, d_c_11, ldc);cublasHgemm(cublasH12, transa, transb, n, m, k, &alpha, d_b_12, ldb, d_a_12, lda, &beta, d_c_12, ldc);cublasHgemm(cublasH13, transa, transb, n, m, k, &alpha, d_b_13, ldb, d_a_13, lda, &beta, d_c_13, ldc);cublasHgemm(cublasH14, transa, transb, n, m, k, &alpha, d_b_14, ldb, d_a_14, lda, &beta, d_c_14, ldc);cublasHgemm(cublasH15, transa, transb, n, m, k, &alpha, d_b_15, ldb, d_a_15, lda, &beta, d_c_15, ldc);cublasHgemm(cublasH16, transa, transb, n, m, k, &alpha, d_b_16, ldb, d_a_16, lda, &beta, d_c_16, ldc);cublasHgemm(cublasH17, transa, transb, n, m, k, &alpha, d_b_17, ldb, d_a_17, lda, &beta, d_c_17, ldc);cublasHgemm(cublasH18, transa, transb, n, m, k, &alpha, d_b_18, ldb, d_a_18, lda, &beta, d_c_18, ldc);cublasHgemm(cublasH19, transa, transb, n, m, k, &alpha, d_b_19, ldb, d_a_19, lda, &beta, d_c_19, ldc);cublasHgemm(cublasH20, transa, transb, n, m, k, &alpha, d_b_20, ldb, d_a_20, lda, &beta, d_c_20, ldc);cublasHgemm(cublasH21, transa, transb, n, m, k, &alpha, d_b_21, ldb, d_a_21, lda, &beta, d_c_21, ldc);cublasHgemm(cublasH22, transa, transb, n, m, k, &alpha, d_b_22, ldb, d_a_22, lda, &beta, d_c_22, ldc);cublasHgemm(cublasH23, transa, transb, n, m, k, &alpha, d_b_23, ldb, d_a_23, lda, &beta, d_c_23, ldc);cublasHgemm(cublasH24, transa, transb, n, m, k, &alpha, d_b_24, ldb, d_a_24, lda, &beta, d_c_24, ldc);cublasHgemm(cublasH25, transa, transb, n, m, k, &alpha, d_b_25, ldb, d_a_25, lda, &beta, d_c_25, ldc);cublasHgemm(cublasH26, transa, transb, n, m, k, &alpha, d_b_26, ldb, d_a_26, lda, &beta, d_c_26, ldc);cublasHgemm(cublasH27, transa, transb, n, m, k, &alpha, d_b_27, ldb, d_a_27, lda, &beta, d_c_27, ldc);cublasHgemm(cublasH28, transa, transb, n, m, k, &alpha, d_b_28, ldb, d_a_28, lda, &beta, d_c_28, ldc);cublasHgemm(cublasH29, transa, transb, n, m, k, &alpha, d_b_29, ldb, d_a_29, lda, &beta, d_c_29, ldc);cublasHgemm(cublasH30, transa, transb, n, m, k, &alpha, d_b_30, ldb, d_a_30, lda, &beta, d_c_30, ldc);cublasHgemm(cublasH31, transa, transb, n, m, k, &alpha, d_b_31, ldb, d_a_31, lda, &beta, d_c_31, ldc);cublasHgemm(cublasH32, transa, transb, n, m, k, &alpha, d_b_32, ldb, d_a_32, lda, &beta, d_c_32, ldc);cublasHgemm(cublasH33, transa, transb, n, m, k, &alpha, d_b_33, ldb, d_a_33, lda, &beta, d_c_33, ldc);cublasHgemm(cublasH34, transa, transb, n, m, k, &alpha, d_b_34, ldb, d_a_34, lda, &beta, d_c_34, ldc);cublasHgemm(cublasH35, transa, transb, n, m, k, &alpha, d_b_35, ldb, d_a_35, lda, &beta, d_c_35, ldc);cublasHgemm(cublasH36, transa, transb, n, m, k, &alpha, d_b_36, ldb, d_a_36, lda, &beta, d_c_36, ldc);cublasHgemm(cublasH37, transa, transb, n, m, k, &alpha, d_b_37, ldb, d_a_37, lda, &beta, d_c_37, ldc);cublasHgemm(cublasH38, transa, transb, n, m, k, &alpha, d_b_38, ldb, d_a_38, lda, &beta, d_c_38, ldc);cublasHgemm(cublasH39, transa, transb, n, m, k, &alpha, d_b_39, ldb, d_a_39, lda, &beta, d_c_39, ldc);cublasHgemm(cublasH40, transa, transb, n, m, k, &alpha, d_b_40, ldb, d_a_40, lda, &beta, d_c_40, ldc);cublasHgemm(cublasH41, transa, transb, n, m, k, &alpha, d_b_41, ldb, d_a_41, lda, &beta, d_c_41, ldc);cublasHgemm(cublasH42, transa, transb, n, m, k, &alpha, d_b_42, ldb, d_a_42, lda, &beta, d_c_42, ldc);cublasHgemm(cublasH43, transa, transb, n, m, k, &alpha, d_b_43, ldb, d_a_43, lda, &beta, d_c_43, ldc);cublasHgemm(cublasH44, transa, transb, n, m, k, &alpha, d_b_44, ldb, d_a_44, lda, &beta, d_c_44, ldc);cublasHgemm(cublasH45, transa, transb, n, m, k, &alpha, d_b_45, ldb, d_a_45, lda, &beta, d_c_45, ldc);cublasHgemm(cublasH46, transa, transb, n, m, k, &alpha, d_b_46, ldb, d_a_46, lda, &beta, d_c_46, ldc);cublasHgemm(cublasH47, transa, transb, n, m, k, &alpha, d_b_47, ldb, d_a_47, lda, &beta, d_c_47, ldc);cublasHgemm(cublasH48, transa, transb, n, m, k, &alpha, d_b_48, ldb, d_a_48, lda, &beta, d_c_48, ldc);cublasHgemm(cublasH49, transa, transb, n, m, k, &alpha, d_b_49, ldb, d_a_49, lda, &beta, d_c_49, ldc);cublasHgemm(cublasH50, transa, transb, n, m, k, &alpha, d_b_50, ldb, d_a_50, lda, &beta, d_c_50, ldc);cublasHgemm(cublasH51, transa, transb, n, m, k, &alpha, d_b_51, ldb, d_a_51, lda, &beta, d_c_51, ldc);cublasHgemm(cublasH52, transa, transb, n, m, k, &alpha, d_b_52, ldb, d_a_52, lda, &beta, d_c_52, ldc);cublasHgemm(cublasH53, transa, transb, n, m, k, &alpha, d_b_53, ldb, d_a_53, lda, &beta, d_c_53, ldc);cublasHgemm(cublasH54, transa, transb, n, m, k, &alpha, d_b_54, ldb, d_a_54, lda, &beta, d_c_54, ldc);cublasHgemm(cublasH55, transa, transb, n, m, k, &alpha, d_b_55, ldb, d_a_55, lda, &beta, d_c_55, ldc);cublasHgemm(cublasH56, transa, transb, n, m, k, &alpha, d_b_56, ldb, d_a_56, lda, &beta, d_c_56, ldc);cublasHgemm(cublasH57, transa, transb, n, m, k, &alpha, d_b_57, ldb, d_a_57, lda, &beta, d_c_57, ldc);cublasHgemm(cublasH58, transa, transb, n, m, k, &alpha, d_b_58, ldb, d_a_58, lda, &beta, d_c_58, ldc);cublasHgemm(cublasH59, transa, transb, n, m, k, &alpha, d_b_59, ldb, d_a_59, lda, &beta, d_c_59, ldc);cublasHgemm(cublasH60, transa, transb, n, m, k, &alpha, d_b_60, ldb, d_a_60, lda, &beta, d_c_60, ldc);cublasHgemm(cublasH61, transa, transb, n, m, k, &alpha, d_b_61, ldb, d_a_61, lda, &beta, d_c_61, ldc);cublasHgemm(cublasH62, transa, transb, n, m, k, &alpha, d_b_62, ldb, d_a_62, lda, &beta, d_c_62, ldc);cublasHgemm(cublasH63, transa, transb, n, m, k, &alpha, d_b_63, ldb, d_a_63, lda, &beta, d_c_63, ldc);cublasHgemm(cublasH64, transa, transb, n, m, k, &alpha, d_b_64, ldb, d_a_64, lda, &beta, d_c_64, ldc);cublasHgemm(cublasH65, transa, transb, n, m, k, &alpha, d_b_65, ldb, d_a_65, lda, &beta, d_c_65, ldc);cublasHgemm(cublasH66, transa, transb, n, m, k, &alpha, d_b_66, ldb, d_a_66, lda, &beta, d_c_66, ldc);cublasHgemm(cublasH67, transa, transb, n, m, k, &alpha, d_b_67, ldb, d_a_67, lda, &beta, d_c_67, ldc);cublasHgemm(cublasH68, transa, transb, n, m, k, &alpha, d_b_68, ldb, d_a_68, lda, &beta, d_c_68, ldc);cublasHgemm(cublasH69, transa, transb, n, m, k, &alpha, d_b_69, ldb, d_a_69, lda, &beta, d_c_69, ldc);cublasHgemm(cublasH70, transa, transb, n, m, k, &alpha, d_b_70, ldb, d_a_70, lda, &beta, d_c_70, ldc);cublasHgemm(cublasH71, transa, transb, n, m, k, &alpha, d_b_71, ldb, d_a_71, lda, &beta, d_c_71, ldc);cublasHgemm(cublasH72, transa, transb, n, m, k, &alpha, d_b_72, ldb, d_a_72, lda, &beta, d_c_72, ldc);cublasHgemm(cublasH73, transa, transb, n, m, k, &alpha, d_b_73, ldb, d_a_73, lda, &beta, d_c_73, ldc);cublasHgemm(cublasH74, transa, transb, n, m, k, &alpha, d_b_74, ldb, d_a_74, lda, &beta, d_c_74, ldc);cublasHgemm(cublasH75, transa, transb, n, m, k, &alpha, d_b_75, ldb, d_a_75, lda, &beta, d_c_75, ldc);cublasHgemm(cublasH76, transa, transb, n, m, k, &alpha, d_b_76, ldb, d_a_76, lda, &beta, d_c_76, ldc);cublasHgemm(cublasH77, transa, transb, n, m, k, &alpha, d_b_77, ldb, d_a_77, lda, &beta, d_c_77, ldc);cublasHgemm(cublasH78, transa, transb, n, m, k, &alpha, d_b_78, ldb, d_a_78, lda, &beta, d_c_78, ldc);cublasHgemm(cublasH79, transa, transb, n, m, k, &alpha, d_b_79, ldb, d_a_79, lda, &beta, d_c_79, ldc);cublasHgemm(cublasH80, transa, transb, n, m, k, &alpha, d_b_80, ldb, d_a_80, lda, &beta, d_c_80, ldc);cublasHgemm(cublasH81, transa, transb, n, m, k, &alpha, d_b_81, ldb, d_a_81, lda, &beta, d_c_81, ldc);
-    cublasHgemm111<<<1,1,1>>>(cublasH1, transa, transb, n, m, k, &alpha, d_b_1, ldb, d_a_1, lda, &beta, d_c_1, ldc);
-    cublasHgemm111<<<2,1,1>>>(cublasH2, transa, transb, n, m, k, &alpha, d_b_2, ldb, d_a_2, lda, &beta, d_c_2, ldc);
-    cublasHgemm111<<<3,1,1>>>(cublasH3, transa, transb, n, m, k, &alpha, d_b_3, ldb, d_a_3, lda, &beta, d_c_3, ldc);
-    cublasHgemm111<<<4,1,1>>>(cublasH4, transa, transb, n, m, k, &alpha, d_b_4, ldb, d_a_4, lda, &beta, d_c_4, ldc);
-    cublasHgemm111<<<5,1,1>>>(cublasH5, transa, transb, n, m, k, &alpha, d_b_5, ldb, d_a_5, lda, &beta, d_c_5, ldc);
-    cublasHgemm111<<<6,1,1>>>(cublasH6, transa, transb, n, m, k, &alpha, d_b_6, ldb, d_a_6, lda, &beta, d_c_6, ldc);
-    cublasHgemm111<<<7,1,1>>>(cublasH7, transa, transb, n, m, k, &alpha, d_b_7, ldb, d_a_7, lda, &beta, d_c_7, ldc);
-    cublasHgemm111<<<8,1,1>>>(cublasH8, transa, transb, n, m, k, &alpha, d_b_8, ldb, d_a_8, lda, &beta, d_c_8, ldc);
-    cublasHgemm111<<<9,1,1>>>(cublasH9, transa, transb, n, m, k, &alpha, d_b_9, ldb, d_a_9, lda, &beta, d_c_9, ldc);
-    cublasHgemm111<<<10,1,1>>>(cublasH10, transa, transb, n, m, k, &alpha, d_b_10, ldb, d_a_10, lda, &beta, d_c_10, ldc);
-    cublasHgemm111<<<11,1,1>>>(cublasH11, transa, transb, n, m, k, &alpha, d_b_11, ldb, d_a_11, lda, &beta, d_c_11, ldc);
-    cublasHgemm111<<<12,1,1>>>(cublasH12, transa, transb, n, m, k, &alpha, d_b_12, ldb, d_a_12, lda, &beta, d_c_12, ldc);
-    cublasHgemm111<<<13,1,1>>>(cublasH13, transa, transb, n, m, k, &alpha, d_b_13, ldb, d_a_13, lda, &beta, d_c_13, ldc);
-    cublasHgemm111<<<14,1,1>>>(cublasH14, transa, transb, n, m, k, &alpha, d_b_14, ldb, d_a_14, lda, &beta, d_c_14, ldc);
-    cublasHgemm111<<<15,1,1>>>(cublasH15, transa, transb, n, m, k, &alpha, d_b_15, ldb, d_a_15, lda, &beta, d_c_15, ldc);
-    cublasHgemm111<<<16,1,1>>>(cublasH16, transa, transb, n, m, k, &alpha, d_b_16, ldb, d_a_16, lda, &beta, d_c_16, ldc);
-    cublasHgemm111<<<17,1,1>>>(cublasH17, transa, transb, n, m, k, &alpha, d_b_17, ldb, d_a_17, lda, &beta, d_c_17, ldc);
-    cublasHgemm111<<<18,1,1>>>(cublasH18, transa, transb, n, m, k, &alpha, d_b_18, ldb, d_a_18, lda, &beta, d_c_18, ldc);
-    cublasHgemm111<<<19,1,1>>>(cublasH19, transa, transb, n, m, k, &alpha, d_b_19, ldb, d_a_19, lda, &beta, d_c_19, ldc);
-    cublasHgemm111<<<20,1,1>>>(cublasH20, transa, transb, n, m, k, &alpha, d_b_20, ldb, d_a_20, lda, &beta, d_c_20, ldc);
-    cublasHgemm111<<<21,1,1>>>(cublasH21, transa, transb, n, m, k, &alpha, d_b_21, ldb, d_a_21, lda, &beta, d_c_21, ldc);
-    cublasHgemm111<<<22,1,1>>>(cublasH22, transa, transb, n, m, k, &alpha, d_b_22, ldb, d_a_22, lda, &beta, d_c_22, ldc);
-    cublasHgemm111<<<23,1,1>>>(cublasH23, transa, transb, n, m, k, &alpha, d_b_23, ldb, d_a_23, lda, &beta, d_c_23, ldc);
-    cublasHgemm111<<<24,1,1>>>(cublasH24, transa, transb, n, m, k, &alpha, d_b_24, ldb, d_a_24, lda, &beta, d_c_24, ldc);
-    cublasHgemm111<<<25,1,1>>>(cublasH25, transa, transb, n, m, k, &alpha, d_b_25, ldb, d_a_25, lda, &beta, d_c_25, ldc);
-    cublasHgemm111<<<26,1,1>>>(cublasH26, transa, transb, n, m, k, &alpha, d_b_26, ldb, d_a_26, lda, &beta, d_c_26, ldc);
-    cublasHgemm111<<<27,1,1>>>(cublasH27, transa, transb, n, m, k, &alpha, d_b_27, ldb, d_a_27, lda, &beta, d_c_27, ldc);
-    cublasHgemm111<<<28,1,1>>>(cublasH28, transa, transb, n, m, k, &alpha, d_b_28, ldb, d_a_28, lda, &beta, d_c_28, ldc);
-    cublasHgemm111<<<29,1,1>>>(cublasH29, transa, transb, n, m, k, &alpha, d_b_29, ldb, d_a_29, lda, &beta, d_c_29, ldc);
-    cublasHgemm111<<<30,1,1>>>(cublasH30, transa, transb, n, m, k, &alpha, d_b_30, ldb, d_a_30, lda, &beta, d_c_30, ldc);
-    cublasHgemm111<<<31,1,1>>>(cublasH31, transa, transb, n, m, k, &alpha, d_b_31, ldb, d_a_31, lda, &beta, d_c_31, ldc);
-    cublasHgemm111<<<32,1,1>>>(cublasH32, transa, transb, n, m, k, &alpha, d_b_32, ldb, d_a_32, lda, &beta, d_c_32, ldc);
-    cublasHgemm111<<<33,1,1>>>(cublasH33, transa, transb, n, m, k, &alpha, d_b_33, ldb, d_a_33, lda, &beta, d_c_33, ldc);
-    cublasHgemm111<<<34,1,1>>>(cublasH34, transa, transb, n, m, k, &alpha, d_b_34, ldb, d_a_34, lda, &beta, d_c_34, ldc);
-    cublasHgemm111<<<35,1,1>>>(cublasH35, transa, transb, n, m, k, &alpha, d_b_35, ldb, d_a_35, lda, &beta, d_c_35, ldc);
-    cublasHgemm111<<<36,1,1>>>(cublasH36, transa, transb, n, m, k, &alpha, d_b_36, ldb, d_a_36, lda, &beta, d_c_36, ldc);
-    cublasHgemm111<<<37,1,1>>>(cublasH37, transa, transb, n, m, k, &alpha, d_b_37, ldb, d_a_37, lda, &beta, d_c_37, ldc);
-    cublasHgemm111<<<38,1,1>>>(cublasH38, transa, transb, n, m, k, &alpha, d_b_38, ldb, d_a_38, lda, &beta, d_c_38, ldc);
-    cublasHgemm111<<<39,1,1>>>(cublasH39, transa, transb, n, m, k, &alpha, d_b_39, ldb, d_a_39, lda, &beta, d_c_39, ldc);
-    cublasHgemm111<<<40,1,1>>>(cublasH40, transa, transb, n, m, k, &alpha, d_b_40, ldb, d_a_40, lda, &beta, d_c_40, ldc);
-    cublasHgemm111<<<41,1,1>>>(cublasH41, transa, transb, n, m, k, &alpha, d_b_41, ldb, d_a_41, lda, &beta, d_c_41, ldc);
-    cublasHgemm111<<<42,1,1>>>(cublasH42, transa, transb, n, m, k, &alpha, d_b_42, ldb, d_a_42, lda, &beta, d_c_42, ldc);
-    cublasHgemm111<<<43,1,1>>>(cublasH43, transa, transb, n, m, k, &alpha, d_b_43, ldb, d_a_43, lda, &beta, d_c_43, ldc);
-    cublasHgemm111<<<44,1,1>>>(cublasH44, transa, transb, n, m, k, &alpha, d_b_44, ldb, d_a_44, lda, &beta, d_c_44, ldc);
-    cublasHgemm111<<<43,1,1>>>(cublasH45, transa, transb, n, m, k, &alpha, d_b_45, ldb, d_a_45, lda, &beta, d_c_45, ldc);
-    cublasHgemm111<<<42,1,1>>>(cublasH46, transa, transb, n, m, k, &alpha, d_b_46, ldb, d_a_46, lda, &beta, d_c_46, ldc);
-    cublasHgemm111<<<41,1,1>>>(cublasH47, transa, transb, n, m, k, &alpha, d_b_47, ldb, d_a_47, lda, &beta, d_c_47, ldc);
-    cublasHgemm111<<<40,1,1>>>(cublasH48, transa, transb, n, m, k, &alpha, d_b_48, ldb, d_a_48, lda, &beta, d_c_48, ldc);
-    cublasHgemm111<<<39,1,1>>>(cublasH49, transa, transb, n, m, k, &alpha, d_b_49, ldb, d_a_49, lda, &beta, d_c_49, ldc);
-    cublasHgemm111<<<38,1,1>>>(cublasH50, transa, transb, n, m, k, &alpha, d_b_50, ldb, d_a_50, lda, &beta, d_c_50, ldc);
-    cublasHgemm111<<<37,1,1>>>(cublasH51, transa, transb, n, m, k, &alpha, d_b_51, ldb, d_a_51, lda, &beta, d_c_51, ldc);
-    cublasHgemm111<<<36,1,1>>>(cublasH52, transa, transb, n, m, k, &alpha, d_b_52, ldb, d_a_52, lda, &beta, d_c_52, ldc);
-    cublasHgemm111<<<35,1,1>>>(cublasH53, transa, transb, n, m, k, &alpha, d_b_53, ldb, d_a_53, lda, &beta, d_c_53, ldc);
-    cublasHgemm111<<<34,1,1>>>(cublasH54, transa, transb, n, m, k, &alpha, d_b_54, ldb, d_a_54, lda, &beta, d_c_54, ldc);
-    cublasHgemm111<<<33,1,1>>>(cublasH55, transa, transb, n, m, k, &alpha, d_b_55, ldb, d_a_55, lda, &beta, d_c_55, ldc);
-    cublasHgemm111<<<32,1,1>>>(cublasH56, transa, transb, n, m, k, &alpha, d_b_56, ldb, d_a_56, lda, &beta, d_c_56, ldc);
-    cublasHgemm111<<<31,1,1>>>(cublasH57, transa, transb, n, m, k, &alpha, d_b_57, ldb, d_a_57, lda, &beta, d_c_57, ldc);
-    cublasHgemm111<<<30,1,1>>>(cublasH58, transa, transb, n, m, k, &alpha, d_b_58, ldb, d_a_58, lda, &beta, d_c_58, ldc);
-    cublasHgemm111<<<29,1,1>>>(cublasH59, transa, transb, n, m, k, &alpha, d_b_59, ldb, d_a_59, lda, &beta, d_c_59, ldc);
-    cublasHgemm111<<<28,1,1>>>(cublasH60, transa, transb, n, m, k, &alpha, d_b_60, ldb, d_a_60, lda, &beta, d_c_60, ldc);
-    cublasHgemm111<<<27,1,1>>>(cublasH61, transa, transb, n, m, k, &alpha, d_b_61, ldb, d_a_61, lda, &beta, d_c_61, ldc);
-    cublasHgemm111<<<26,1,1>>>(cublasH62, transa, transb, n, m, k, &alpha, d_b_62, ldb, d_a_62, lda, &beta, d_c_62, ldc);
-    cublasHgemm111<<<25,1,1>>>(cublasH63, transa, transb, n, m, k, &alpha, d_b_63, ldb, d_a_63, lda, &beta, d_c_63, ldc);
-    cublasHgemm111<<<24,1,1>>>(cublasH64, transa, transb, n, m, k, &alpha, d_b_64, ldb, d_a_64, lda, &beta, d_c_64, ldc);
-    cublasHgemm111<<<23,1,1>>>(cublasH65, transa, transb, n, m, k, &alpha, d_b_65, ldb, d_a_65, lda, &beta, d_c_65, ldc);
-    cublasHgemm111<<<22,1,1>>>(cublasH66, transa, transb, n, m, k, &alpha, d_b_66, ldb, d_a_66, lda, &beta, d_c_66, ldc);
-    cublasHgemm111<<<21,1,1>>>(cublasH67, transa, transb, n, m, k, &alpha, d_b_67, ldb, d_a_67, lda, &beta, d_c_67, ldc);
-    cublasHgemm111<<<20,1,1>>>(cublasH68, transa, transb, n, m, k, &alpha, d_b_68, ldb, d_a_68, lda, &beta, d_c_68, ldc);
-    cublasHgemm111<<<19,1,1>>>(cublasH69, transa, transb, n, m, k, &alpha, d_b_69, ldb, d_a_69, lda, &beta, d_c_69, ldc);
-    cublasHgemm111<<<18,1,1>>>(cublasH70, transa, transb, n, m, k, &alpha, d_b_70, ldb, d_a_70, lda, &beta, d_c_70, ldc);
-    cublasHgemm111<<<17,1,1>>>(cublasH71, transa, transb, n, m, k, &alpha, d_b_71, ldb, d_a_71, lda, &beta, d_c_71, ldc);
-    cublasHgemm111<<<16,1,1>>>(cublasH72, transa, transb, n, m, k, &alpha, d_b_72, ldb, d_a_72, lda, &beta, d_c_72, ldc);
-    cublasHgemm111<<<15,1,1>>>(cublasH73, transa, transb, n, m, k, &alpha, d_b_73, ldb, d_a_73, lda, &beta, d_c_73, ldc);
-    cublasHgemm111<<<14,1,1>>>(cublasH74, transa, transb, n, m, k, &alpha, d_b_74, ldb, d_a_74, lda, &beta, d_c_74, ldc);
-    cublasHgemm111<<<13,1,1>>>(cublasH75, transa, transb, n, m, k, &alpha, d_b_75, ldb, d_a_75, lda, &beta, d_c_75, ldc);
-    cublasHgemm111<<<12,1,1>>>(cublasH76, transa, transb, n, m, k, &alpha, d_b_76, ldb, d_a_76, lda, &beta, d_c_76, ldc);
-    cublasHgemm111<<<11,1,1>>>(cublasH77, transa, transb, n, m, k, &alpha, d_b_77, ldb, d_a_77, lda, &beta, d_c_77, ldc);
-    cublasHgemm111<<<10,1,1>>>(cublasH78, transa, transb, n, m, k, &alpha, d_b_78, ldb, d_a_78, lda, &beta, d_c_78, ldc);
-    cublasHgemm111<<<9,1,1>>>(cublasH79, transa, transb, n, m, k, &alpha, d_b_79, ldb, d_a_79, lda, &beta, d_c_79, ldc);
-    cublasHgemm111<<<8,1,1>>>(cublasH80, transa, transb, n, m, k, &alpha, d_b_80, ldb, d_a_80, lda, &beta, d_c_80, ldc);
-    cublasHgemm111<<<7,1,1>>>(cublasH81, transa, transb, n, m, k, &alpha, d_b_81, ldb, d_a_81, lda, &beta, d_c_81, ldc);
+    cublasHgemm(cublasH1, transa, transb, n, m, k, &alpha, d_b_1, ldb, d_a_1, lda, &beta, d_c_1, ldc);cublasHgemm(cublasH2, transa, transb, n, m, k, &alpha, d_b_2, ldb, d_a_2, lda, &beta, d_c_2, ldc);cublasHgemm(cublasH3, transa, transb, n, m, k, &alpha, d_b_3, ldb, d_a_3, lda, &beta, d_c_3, ldc);cublasHgemm(cublasH4, transa, transb, n, m, k, &alpha, d_b_4, ldb, d_a_4, lda, &beta, d_c_4, ldc);cublasHgemm(cublasH5, transa, transb, n, m, k, &alpha, d_b_5, ldb, d_a_5, lda, &beta, d_c_5, ldc);cublasHgemm(cublasH6, transa, transb, n, m, k, &alpha, d_b_6, ldb, d_a_6, lda, &beta, d_c_6, ldc);cublasHgemm(cublasH7, transa, transb, n, m, k, &alpha, d_b_7, ldb, d_a_7, lda, &beta, d_c_7, ldc);cublasHgemm(cublasH8, transa, transb, n, m, k, &alpha, d_b_8, ldb, d_a_8, lda, &beta, d_c_8, ldc);cublasHgemm(cublasH9, transa, transb, n, m, k, &alpha, d_b_9, ldb, d_a_9, lda, &beta, d_c_9, ldc);cublasHgemm(cublasH10, transa, transb, n, m, k, &alpha, d_b_10, ldb, d_a_10, lda, &beta, d_c_10, ldc);cublasHgemm(cublasH11, transa, transb, n, m, k, &alpha, d_b_11, ldb, d_a_11, lda, &beta, d_c_11, ldc);cublasHgemm(cublasH12, transa, transb, n, m, k, &alpha, d_b_12, ldb, d_a_12, lda, &beta, d_c_12, ldc);cublasHgemm(cublasH13, transa, transb, n, m, k, &alpha, d_b_13, ldb, d_a_13, lda, &beta, d_c_13, ldc);cublasHgemm(cublasH14, transa, transb, n, m, k, &alpha, d_b_14, ldb, d_a_14, lda, &beta, d_c_14, ldc);cublasHgemm(cublasH15, transa, transb, n, m, k, &alpha, d_b_15, ldb, d_a_15, lda, &beta, d_c_15, ldc);cublasHgemm(cublasH16, transa, transb, n, m, k, &alpha, d_b_16, ldb, d_a_16, lda, &beta, d_c_16, ldc);cublasHgemm(cublasH17, transa, transb, n, m, k, &alpha, d_b_17, ldb, d_a_17, lda, &beta, d_c_17, ldc);cublasHgemm(cublasH18, transa, transb, n, m, k, &alpha, d_b_18, ldb, d_a_18, lda, &beta, d_c_18, ldc);cublasHgemm(cublasH19, transa, transb, n, m, k, &alpha, d_b_19, ldb, d_a_19, lda, &beta, d_c_19, ldc);cublasHgemm(cublasH20, transa, transb, n, m, k, &alpha, d_b_20, ldb, d_a_20, lda, &beta, d_c_20, ldc);cublasHgemm(cublasH21, transa, transb, n, m, k, &alpha, d_b_21, ldb, d_a_21, lda, &beta, d_c_21, ldc);cublasHgemm(cublasH22, transa, transb, n, m, k, &alpha, d_b_22, ldb, d_a_22, lda, &beta, d_c_22, ldc);cublasHgemm(cublasH23, transa, transb, n, m, k, &alpha, d_b_23, ldb, d_a_23, lda, &beta, d_c_23, ldc);cublasHgemm(cublasH24, transa, transb, n, m, k, &alpha, d_b_24, ldb, d_a_24, lda, &beta, d_c_24, ldc);cublasHgemm(cublasH25, transa, transb, n, m, k, &alpha, d_b_25, ldb, d_a_25, lda, &beta, d_c_25, ldc);cublasHgemm(cublasH26, transa, transb, n, m, k, &alpha, d_b_26, ldb, d_a_26, lda, &beta, d_c_26, ldc);cublasHgemm(cublasH27, transa, transb, n, m, k, &alpha, d_b_27, ldb, d_a_27, lda, &beta, d_c_27, ldc);cublasHgemm(cublasH28, transa, transb, n, m, k, &alpha, d_b_28, ldb, d_a_28, lda, &beta, d_c_28, ldc);cublasHgemm(cublasH29, transa, transb, n, m, k, &alpha, d_b_29, ldb, d_a_29, lda, &beta, d_c_29, ldc);cublasHgemm(cublasH30, transa, transb, n, m, k, &alpha, d_b_30, ldb, d_a_30, lda, &beta, d_c_30, ldc);cublasHgemm(cublasH31, transa, transb, n, m, k, &alpha, d_b_31, ldb, d_a_31, lda, &beta, d_c_31, ldc);cublasHgemm(cublasH32, transa, transb, n, m, k, &alpha, d_b_32, ldb, d_a_32, lda, &beta, d_c_32, ldc);cublasHgemm(cublasH33, transa, transb, n, m, k, &alpha, d_b_33, ldb, d_a_33, lda, &beta, d_c_33, ldc);cublasHgemm(cublasH34, transa, transb, n, m, k, &alpha, d_b_34, ldb, d_a_34, lda, &beta, d_c_34, ldc);cublasHgemm(cublasH35, transa, transb, n, m, k, &alpha, d_b_35, ldb, d_a_35, lda, &beta, d_c_35, ldc);cublasHgemm(cublasH36, transa, transb, n, m, k, &alpha, d_b_36, ldb, d_a_36, lda, &beta, d_c_36, ldc);cublasHgemm(cublasH37, transa, transb, n, m, k, &alpha, d_b_37, ldb, d_a_37, lda, &beta, d_c_37, ldc);cublasHgemm(cublasH38, transa, transb, n, m, k, &alpha, d_b_38, ldb, d_a_38, lda, &beta, d_c_38, ldc);cublasHgemm(cublasH39, transa, transb, n, m, k, &alpha, d_b_39, ldb, d_a_39, lda, &beta, d_c_39, ldc);cublasHgemm(cublasH40, transa, transb, n, m, k, &alpha, d_b_40, ldb, d_a_40, lda, &beta, d_c_40, ldc);cublasHgemm(cublasH41, transa, transb, n, m, k, &alpha, d_b_41, ldb, d_a_41, lda, &beta, d_c_41, ldc);cublasHgemm(cublasH42, transa, transb, n, m, k, &alpha, d_b_42, ldb, d_a_42, lda, &beta, d_c_42, ldc);cublasHgemm(cublasH43, transa, transb, n, m, k, &alpha, d_b_43, ldb, d_a_43, lda, &beta, d_c_43, ldc);cublasHgemm(cublasH44, transa, transb, n, m, k, &alpha, d_b_44, ldb, d_a_44, lda, &beta, d_c_44, ldc);cublasHgemm(cublasH45, transa, transb, n, m, k, &alpha, d_b_45, ldb, d_a_45, lda, &beta, d_c_45, ldc);cublasHgemm(cublasH46, transa, transb, n, m, k, &alpha, d_b_46, ldb, d_a_46, lda, &beta, d_c_46, ldc);cublasHgemm(cublasH47, transa, transb, n, m, k, &alpha, d_b_47, ldb, d_a_47, lda, &beta, d_c_47, ldc);cublasHgemm(cublasH48, transa, transb, n, m, k, &alpha, d_b_48, ldb, d_a_48, lda, &beta, d_c_48, ldc);cublasHgemm(cublasH49, transa, transb, n, m, k, &alpha, d_b_49, ldb, d_a_49, lda, &beta, d_c_49, ldc);cublasHgemm(cublasH50, transa, transb, n, m, k, &alpha, d_b_50, ldb, d_a_50, lda, &beta, d_c_50, ldc);cublasHgemm(cublasH51, transa, transb, n, m, k, &alpha, d_b_51, ldb, d_a_51, lda, &beta, d_c_51, ldc);cublasHgemm(cublasH52, transa, transb, n, m, k, &alpha, d_b_52, ldb, d_a_52, lda, &beta, d_c_52, ldc);cublasHgemm(cublasH53, transa, transb, n, m, k, &alpha, d_b_53, ldb, d_a_53, lda, &beta, d_c_53, ldc);cublasHgemm(cublasH54, transa, transb, n, m, k, &alpha, d_b_54, ldb, d_a_54, lda, &beta, d_c_54, ldc);cublasHgemm(cublasH55, transa, transb, n, m, k, &alpha, d_b_55, ldb, d_a_55, lda, &beta, d_c_55, ldc);cublasHgemm(cublasH56, transa, transb, n, m, k, &alpha, d_b_56, ldb, d_a_56, lda, &beta, d_c_56, ldc);cublasHgemm(cublasH57, transa, transb, n, m, k, &alpha, d_b_57, ldb, d_a_57, lda, &beta, d_c_57, ldc);cublasHgemm(cublasH58, transa, transb, n, m, k, &alpha, d_b_58, ldb, d_a_58, lda, &beta, d_c_58, ldc);cublasHgemm(cublasH59, transa, transb, n, m, k, &alpha, d_b_59, ldb, d_a_59, lda, &beta, d_c_59, ldc);cublasHgemm(cublasH60, transa, transb, n, m, k, &alpha, d_b_60, ldb, d_a_60, lda, &beta, d_c_60, ldc);cublasHgemm(cublasH61, transa, transb, n, m, k, &alpha, d_b_61, ldb, d_a_61, lda, &beta, d_c_61, ldc);cublasHgemm(cublasH62, transa, transb, n, m, k, &alpha, d_b_62, ldb, d_a_62, lda, &beta, d_c_62, ldc);cublasHgemm(cublasH63, transa, transb, n, m, k, &alpha, d_b_63, ldb, d_a_63, lda, &beta, d_c_63, ldc);cublasHgemm(cublasH64, transa, transb, n, m, k, &alpha, d_b_64, ldb, d_a_64, lda, &beta, d_c_64, ldc);cublasHgemm(cublasH65, transa, transb, n, m, k, &alpha, d_b_65, ldb, d_a_65, lda, &beta, d_c_65, ldc);cublasHgemm(cublasH66, transa, transb, n, m, k, &alpha, d_b_66, ldb, d_a_66, lda, &beta, d_c_66, ldc);cublasHgemm(cublasH67, transa, transb, n, m, k, &alpha, d_b_67, ldb, d_a_67, lda, &beta, d_c_67, ldc);cublasHgemm(cublasH68, transa, transb, n, m, k, &alpha, d_b_68, ldb, d_a_68, lda, &beta, d_c_68, ldc);cublasHgemm(cublasH69, transa, transb, n, m, k, &alpha, d_b_69, ldb, d_a_69, lda, &beta, d_c_69, ldc);cublasHgemm(cublasH70, transa, transb, n, m, k, &alpha, d_b_70, ldb, d_a_70, lda, &beta, d_c_70, ldc);cublasHgemm(cublasH71, transa, transb, n, m, k, &alpha, d_b_71, ldb, d_a_71, lda, &beta, d_c_71, ldc);cublasHgemm(cublasH72, transa, transb, n, m, k, &alpha, d_b_72, ldb, d_a_72, lda, &beta, d_c_72, ldc);cublasHgemm(cublasH73, transa, transb, n, m, k, &alpha, d_b_73, ldb, d_a_73, lda, &beta, d_c_73, ldc);cublasHgemm(cublasH74, transa, transb, n, m, k, &alpha, d_b_74, ldb, d_a_74, lda, &beta, d_c_74, ldc);cublasHgemm(cublasH75, transa, transb, n, m, k, &alpha, d_b_75, ldb, d_a_75, lda, &beta, d_c_75, ldc);cublasHgemm(cublasH76, transa, transb, n, m, k, &alpha, d_b_76, ldb, d_a_76, lda, &beta, d_c_76, ldc);cublasHgemm(cublasH77, transa, transb, n, m, k, &alpha, d_b_77, ldb, d_a_77, lda, &beta, d_c_77, ldc);cublasHgemm(cublasH78, transa, transb, n, m, k, &alpha, d_b_78, ldb, d_a_78, lda, &beta, d_c_78, ldc);cublasHgemm(cublasH79, transa, transb, n, m, k, &alpha, d_b_79, ldb, d_a_79, lda, &beta, d_c_79, ldc);cublasHgemm(cublasH80, transa, transb, n, m, k, &alpha, d_b_80, ldb, d_a_80, lda, &beta, d_c_80, ldc);cublasHgemm(cublasH81, transa, transb, n, m, k, &alpha, d_b_81, ldb, d_a_81, lda, &beta, d_c_81, ldc);
+
+    // cublasHgemm111<<<1,1,1,stream1>>>(cublasH1, transa, transb, n, m, k, &alpha, d_b_1, ldb, d_a_1, lda, &beta, d_c_1, ldc);
+    // cublasHgemm111<<<2,1,1,stream2>>>(cublasH2, transa, transb, n, m, k, &alpha, d_b_2, ldb, d_a_2, lda, &beta, d_c_2, ldc);
+    // cublasHgemm111<<<3,1,1,stream3>>>(cublasH3, transa, transb, n, m, k, &alpha, d_b_3, ldb, d_a_3, lda, &beta, d_c_3, ldc);
+    // cublasHgemm111<<<4,1,1,stream4>>>(cublasH4, transa, transb, n, m, k, &alpha, d_b_4, ldb, d_a_4, lda, &beta, d_c_4, ldc);
+    // cublasHgemm111<<<5,1,1,stream5>>>(cublasH5, transa, transb, n, m, k, &alpha, d_b_5, ldb, d_a_5, lda, &beta, d_c_5, ldc);
+    // cublasHgemm111<<<6,1,1,stream6>>>(cublasH6, transa, transb, n, m, k, &alpha, d_b_6, ldb, d_a_6, lda, &beta, d_c_6, ldc);
+    // cublasHgemm111<<<7,1,1,stream7>>>(cublasH7, transa, transb, n, m, k, &alpha, d_b_7, ldb, d_a_7, lda, &beta, d_c_7, ldc);
+    // cublasHgemm111<<<8,1,1,stream8>>>(cublasH8, transa, transb, n, m, k, &alpha, d_b_8, ldb, d_a_8, lda, &beta, d_c_8, ldc);
+    // cublasHgemm111<<<9,1,1,stream9>>>(cublasH9, transa, transb, n, m, k, &alpha, d_b_9, ldb, d_a_9, lda, &beta, d_c_9, ldc);
+    // cublasHgemm111<<<10,1,1,stream10>>>(cublasH10, transa, transb, n, m, k, &alpha, d_b_10, ldb, d_a_10, lda, &beta, d_c_10, ldc);
+    // cublasHgemm111<<<11,1,1,stream11>>>(cublasH11, transa, transb, n, m, k, &alpha, d_b_11, ldb, d_a_11, lda, &beta, d_c_11, ldc);
+    // cublasHgemm111<<<12,1,1,stream12>>>(cublasH12, transa, transb, n, m, k, &alpha, d_b_12, ldb, d_a_12, lda, &beta, d_c_12, ldc);
+    // cublasHgemm111<<<13,1,1,stream13>>>(cublasH13, transa, transb, n, m, k, &alpha, d_b_13, ldb, d_a_13, lda, &beta, d_c_13, ldc);
+    // cublasHgemm111<<<14,1,1,stream14>>>(cublasH14, transa, transb, n, m, k, &alpha, d_b_14, ldb, d_a_14, lda, &beta, d_c_14, ldc);
+    // cublasHgemm111<<<15,1,1,stream15>>>(cublasH15, transa, transb, n, m, k, &alpha, d_b_15, ldb, d_a_15, lda, &beta, d_c_15, ldc);
+    // cublasHgemm111<<<16,1,1,stream16>>>(cublasH16, transa, transb, n, m, k, &alpha, d_b_16, ldb, d_a_16, lda, &beta, d_c_16, ldc);
+    // cublasHgemm111<<<17,1,1,stream17>>>(cublasH17, transa, transb, n, m, k, &alpha, d_b_17, ldb, d_a_17, lda, &beta, d_c_17, ldc);
+    // cublasHgemm111<<<18,1,1,stream18>>>(cublasH18, transa, transb, n, m, k, &alpha, d_b_18, ldb, d_a_18, lda, &beta, d_c_18, ldc);
+    // cublasHgemm111<<<19,1,1,stream19>>>(cublasH19, transa, transb, n, m, k, &alpha, d_b_19, ldb, d_a_19, lda, &beta, d_c_19, ldc);
+    // cublasHgemm111<<<20,1,1,stream20>>>(cublasH20, transa, transb, n, m, k, &alpha, d_b_20, ldb, d_a_20, lda, &beta, d_c_20, ldc);
+    // cublasHgemm111<<<21,1,1,stream21>>>(cublasH21, transa, transb, n, m, k, &alpha, d_b_21, ldb, d_a_21, lda, &beta, d_c_21, ldc);
+    // cublasHgemm111<<<22,1,1,stream22>>>(cublasH22, transa, transb, n, m, k, &alpha, d_b_22, ldb, d_a_22, lda, &beta, d_c_22, ldc);
+    // cublasHgemm111<<<23,1,1,stream23>>>(cublasH23, transa, transb, n, m, k, &alpha, d_b_23, ldb, d_a_23, lda, &beta, d_c_23, ldc);
+    // cublasHgemm111<<<24,1,1,stream24>>>(cublasH24, transa, transb, n, m, k, &alpha, d_b_24, ldb, d_a_24, lda, &beta, d_c_24, ldc);
+    // cublasHgemm111<<<25,1,1,stream25>>>(cublasH25, transa, transb, n, m, k, &alpha, d_b_25, ldb, d_a_25, lda, &beta, d_c_25, ldc);
+    // cublasHgemm111<<<26,1,1,stream26>>>(cublasH26, transa, transb, n, m, k, &alpha, d_b_26, ldb, d_a_26, lda, &beta, d_c_26, ldc);
+    // cublasHgemm111<<<27,1,1,stream27>>>(cublasH27, transa, transb, n, m, k, &alpha, d_b_27, ldb, d_a_27, lda, &beta, d_c_27, ldc);
+    // cublasHgemm111<<<28,1,1,stream28>>>(cublasH28, transa, transb, n, m, k, &alpha, d_b_28, ldb, d_a_28, lda, &beta, d_c_28, ldc);
+    // cublasHgemm111<<<29,1,1,stream29>>>(cublasH29, transa, transb, n, m, k, &alpha, d_b_29, ldb, d_a_29, lda, &beta, d_c_29, ldc);
+    // cublasHgemm111<<<30,1,1,stream30>>>(cublasH30, transa, transb, n, m, k, &alpha, d_b_30, ldb, d_a_30, lda, &beta, d_c_30, ldc);
+    // cublasHgemm111<<<31,1,1,stream31>>>(cublasH31, transa, transb, n, m, k, &alpha, d_b_31, ldb, d_a_31, lda, &beta, d_c_31, ldc);
+    // cublasHgemm111<<<32,1,1,stream32>>>(cublasH32, transa, transb, n, m, k, &alpha, d_b_32, ldb, d_a_32, lda, &beta, d_c_32, ldc);
+    // cublasHgemm111<<<33,1,1,stream33>>>(cublasH33, transa, transb, n, m, k, &alpha, d_b_33, ldb, d_a_33, lda, &beta, d_c_33, ldc);
+    // cublasHgemm111<<<34,1,1,stream34>>>(cublasH34, transa, transb, n, m, k, &alpha, d_b_34, ldb, d_a_34, lda, &beta, d_c_34, ldc);
+    // cublasHgemm111<<<35,1,1,stream35>>>(cublasH35, transa, transb, n, m, k, &alpha, d_b_35, ldb, d_a_35, lda, &beta, d_c_35, ldc);
+    // cublasHgemm111<<<36,1,1,stream36>>>(cublasH36, transa, transb, n, m, k, &alpha, d_b_36, ldb, d_a_36, lda, &beta, d_c_36, ldc);
+    // cublasHgemm111<<<37,1,1,stream37>>>(cublasH37, transa, transb, n, m, k, &alpha, d_b_37, ldb, d_a_37, lda, &beta, d_c_37, ldc);
+    // cublasHgemm111<<<38,1,1,stream38>>>(cublasH38, transa, transb, n, m, k, &alpha, d_b_38, ldb, d_a_38, lda, &beta, d_c_38, ldc);
+    // cublasHgemm111<<<39,1,1,stream39>>>(cublasH39, transa, transb, n, m, k, &alpha, d_b_39, ldb, d_a_39, lda, &beta, d_c_39, ldc);
+    // cublasHgemm111<<<40,1,1,stream40>>>(cublasH40, transa, transb, n, m, k, &alpha, d_b_40, ldb, d_a_40, lda, &beta, d_c_40, ldc);
+    // cublasHgemm111<<<41,1,1,stream41>>>(cublasH41, transa, transb, n, m, k, &alpha, d_b_41, ldb, d_a_41, lda, &beta, d_c_41, ldc);
+    // cublasHgemm111<<<42,1,1,stream42>>>(cublasH42, transa, transb, n, m, k, &alpha, d_b_42, ldb, d_a_42, lda, &beta, d_c_42, ldc);
+    // cublasHgemm111<<<43,1,1,stream43>>>(cublasH43, transa, transb, n, m, k, &alpha, d_b_43, ldb, d_a_43, lda, &beta, d_c_43, ldc);
+    // cublasHgemm111<<<44,1,1,stream44>>>(cublasH44, transa, transb, n, m, k, &alpha, d_b_44, ldb, d_a_44, lda, &beta, d_c_44, ldc);
+    // cublasHgemm111<<<43,1,1,stream45>>>(cublasH45, transa, transb, n, m, k, &alpha, d_b_45, ldb, d_a_45, lda, &beta, d_c_45, ldc);
+    // cublasHgemm111<<<42,1,1,stream46>>>(cublasH46, transa, transb, n, m, k, &alpha, d_b_46, ldb, d_a_46, lda, &beta, d_c_46, ldc);
+    // cublasHgemm111<<<41,1,1,stream47>>>(cublasH47, transa, transb, n, m, k, &alpha, d_b_47, ldb, d_a_47, lda, &beta, d_c_47, ldc);
+    // cublasHgemm111<<<40,1,1,stream48>>>(cublasH48, transa, transb, n, m, k, &alpha, d_b_48, ldb, d_a_48, lda, &beta, d_c_48, ldc);
+    // cublasHgemm111<<<39,1,1,stream49>>>(cublasH49, transa, transb, n, m, k, &alpha, d_b_49, ldb, d_a_49, lda, &beta, d_c_49, ldc);
+    // cublasHgemm111<<<38,1,1,stream50>>>(cublasH50, transa, transb, n, m, k, &alpha, d_b_50, ldb, d_a_50, lda, &beta, d_c_50, ldc);
+    // cublasHgemm111<<<37,1,1,stream51>>>(cublasH51, transa, transb, n, m, k, &alpha, d_b_51, ldb, d_a_51, lda, &beta, d_c_51, ldc);
+    // cublasHgemm111<<<36,1,1,stream52>>>(cublasH52, transa, transb, n, m, k, &alpha, d_b_52, ldb, d_a_52, lda, &beta, d_c_52, ldc);
+    // cublasHgemm111<<<35,1,1,stream53>>>(cublasH53, transa, transb, n, m, k, &alpha, d_b_53, ldb, d_a_53, lda, &beta, d_c_53, ldc);
+    // cublasHgemm111<<<34,1,1,stream54>>>(cublasH54, transa, transb, n, m, k, &alpha, d_b_54, ldb, d_a_54, lda, &beta, d_c_54, ldc);
+    // cublasHgemm111<<<33,1,1,stream55>>>(cublasH55, transa, transb, n, m, k, &alpha, d_b_55, ldb, d_a_55, lda, &beta, d_c_55, ldc);
+    // cublasHgemm111<<<32,1,1,stream56>>>(cublasH56, transa, transb, n, m, k, &alpha, d_b_56, ldb, d_a_56, lda, &beta, d_c_56, ldc);
+    // cublasHgemm111<<<31,1,1,stream57>>>(cublasH57, transa, transb, n, m, k, &alpha, d_b_57, ldb, d_a_57, lda, &beta, d_c_57, ldc);
+    // cublasHgemm111<<<30,1,1,stream58>>>(cublasH58, transa, transb, n, m, k, &alpha, d_b_58, ldb, d_a_58, lda, &beta, d_c_58, ldc);
+    // cublasHgemm111<<<29,1,1,stream59>>>(cublasH59, transa, transb, n, m, k, &alpha, d_b_59, ldb, d_a_59, lda, &beta, d_c_59, ldc);
+    // cublasHgemm111<<<28,1,1,stream60>>>(cublasH60, transa, transb, n, m, k, &alpha, d_b_60, ldb, d_a_60, lda, &beta, d_c_60, ldc);
+    // cublasHgemm111<<<27,1,1,stream61>>>(cublasH61, transa, transb, n, m, k, &alpha, d_b_61, ldb, d_a_61, lda, &beta, d_c_61, ldc);
+    // cublasHgemm111<<<26,1,1,stream62>>>(cublasH62, transa, transb, n, m, k, &alpha, d_b_62, ldb, d_a_62, lda, &beta, d_c_62, ldc);
+    // cublasHgemm111<<<25,1,1,stream63>>>(cublasH63, transa, transb, n, m, k, &alpha, d_b_63, ldb, d_a_63, lda, &beta, d_c_63, ldc);
+    // cublasHgemm111<<<24,1,1,stream64>>>(cublasH64, transa, transb, n, m, k, &alpha, d_b_64, ldb, d_a_64, lda, &beta, d_c_64, ldc);
+    // cublasHgemm111<<<23,1,1,stream65>>>(cublasH65, transa, transb, n, m, k, &alpha, d_b_65, ldb, d_a_65, lda, &beta, d_c_65, ldc);
+    // cublasHgemm111<<<22,1,1,stream66>>>(cublasH66, transa, transb, n, m, k, &alpha, d_b_66, ldb, d_a_66, lda, &beta, d_c_66, ldc);
+    // cublasHgemm111<<<21,1,1,stream67>>>(cublasH67, transa, transb, n, m, k, &alpha, d_b_67, ldb, d_a_67, lda, &beta, d_c_67, ldc);
+    // cublasHgemm111<<<20,1,1,stream68>>>(cublasH68, transa, transb, n, m, k, &alpha, d_b_68, ldb, d_a_68, lda, &beta, d_c_68, ldc);
+    // cublasHgemm111<<<19,1,1,stream69>>>(cublasH69, transa, transb, n, m, k, &alpha, d_b_69, ldb, d_a_69, lda, &beta, d_c_69, ldc);
+    // cublasHgemm111<<<18,1,1,stream70>>>(cublasH70, transa, transb, n, m, k, &alpha, d_b_70, ldb, d_a_70, lda, &beta, d_c_70, ldc);
+    // cublasHgemm111<<<17,1,1,stream71>>>(cublasH71, transa, transb, n, m, k, &alpha, d_b_71, ldb, d_a_71, lda, &beta, d_c_71, ldc);
+    // cublasHgemm111<<<16,1,1,stream72>>>(cublasH72, transa, transb, n, m, k, &alpha, d_b_72, ldb, d_a_72, lda, &beta, d_c_72, ldc);
+    // cublasHgemm111<<<15,1,1,stream73>>>(cublasH73, transa, transb, n, m, k, &alpha, d_b_73, ldb, d_a_73, lda, &beta, d_c_73, ldc);
+    // cublasHgemm111<<<14,1,1,stream74>>>(cublasH74, transa, transb, n, m, k, &alpha, d_b_74, ldb, d_a_74, lda, &beta, d_c_74, ldc);
+    // cublasHgemm111<<<13,1,1,stream75>>>(cublasH75, transa, transb, n, m, k, &alpha, d_b_75, ldb, d_a_75, lda, &beta, d_c_75, ldc);
+    // cublasHgemm111<<<12,1,1,stream76>>>(cublasH76, transa, transb, n, m, k, &alpha, d_b_76, ldb, d_a_76, lda, &beta, d_c_76, ldc);
+    // cublasHgemm111<<<11,1,1,stream77>>>(cublasH77, transa, transb, n, m, k, &alpha, d_b_77, ldb, d_a_77, lda, &beta, d_c_77, ldc);
+    // cublasHgemm111<<<10,1,1,stream78>>>(cublasH78, transa, transb, n, m, k, &alpha, d_b_78, ldb, d_a_78, lda, &beta, d_c_78, ldc);
+    // cublasHgemm111<<<9,1,1,stream79>>>(cublasH79, transa, transb, n, m, k, &alpha, d_b_79, ldb, d_a_79, lda, &beta, d_c_79, ldc);
+    // cublasHgemm111<<<8,1,1,stream80>>>(cublasH80, transa, transb, n, m, k, &alpha, d_b_80, ldb, d_a_80, lda, &beta, d_c_80, ldc);
+    // cublasHgemm111<<<7,1,1,stream81>>>(cublasH81, transa, transb, n, m, k, &alpha, d_b_81, ldb, d_a_81, lda, &beta, d_c_81, ldc);
+    
+
 
     // step 4: copy data to host 
     // CUDA_CHECK(cudaMemcpyAsync(C.data(), d_c_1, sizeof(data_type) * C.size(), cudaMemcpyDeviceToHost,
@@ -1312,10 +1100,6 @@ int main(int argc, char *argv[]) {
     //       | 43.0 | 50.0 |
     //
     
-    // printf("C\n");
-    // normal_print_matrix(m, n, C.data());
-    // printf("=====\n");
-
     // free resources 
     CUDA_CHECK(cudaFree(d_a_1));
     CUDA_CHECK(cudaFree(d_b_1));
