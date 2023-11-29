@@ -1,6 +1,7 @@
 inject_funcs.o
 tracer.bak.o
 tracer.so
+tracer.o
 vectoradd/configs
 vectoradd/memory_traces
 vectoradd/sass_traces
