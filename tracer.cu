@@ -52,6 +52,11 @@ map<string, int> opcode_to_id_map;
 map<int, string> id_to_opcode_map;
 
 
+struct concurrentKernelsProp {
+    int true_or_false = 0;
+    bool valid = false;
+} concurrentKernels;
+
 typedef unordered_map<int, int> int_int_map;
 
 // int_int_map bb_map;
@@ -136,23 +141,25 @@ void nvbit_at_init() {
             return;
         }
     }
-
+    
+    system("rm -rf memory_traces");
     if (mkdir("memory_traces", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1){
         if( errno == EEXIST ) {
-        // alredy exists
-        system("rm memory_traces/*");
+            // alredy exists
+            system("rm memory_traces/*");
         } else {
-        // something else
+            // something else
             cout << "cannot create memory_traces directory error:" << strerror(errno) << endl;
             throw runtime_error(strerror(errno));
             return;
         }
     }
 
+    system("rm -rf sass_traces");
     if (mkdir("sass_traces", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1){
         if( errno == EEXIST ) {
-        // alredy exists
-        system("rm sass_traces/*");
+            // alredy exists
+            system("rm sass_traces/*");
         } else {
         // something else
             cout << "cannot create sass_traces directory error:" << strerror(errno) << endl;
@@ -200,6 +207,9 @@ void dump_app_config(){
         }
         app_config_fp << i;
     }
+    
+    app_config_fp << endl << "-device_concurrentKernels " << concurrentKernels.true_or_false << endl;
+
     app_config_fp.close();
     cout << "--> sass + memory traces are collected for "<<(kernel_id - 1) << " kernels"<<"\n";
 }
@@ -448,20 +458,27 @@ void dump_issue_config(){
 }
 
 
+// void dump_instn_config(){
+//     for (int kernel = 1; kernel < kernel_id; kernel++){
+//         for (int pc = 0; pc < 100000; pc += 16) {
+//             bool found = false;
+//             for (const auto& item : PCid_Instn_Map) {
+//                 if (get<0>(item.first) == kernel && get<1>(item.first) == pc) {
+//                     instn_config_fp << item.second << endl;
+//                     found = true;
+//                 }
+//             }
+//             if (!found) {
+//                 // break;
+//             }
+//         }
+//     }
+//     instn_config_fp.close();
+// }
+
 void dump_instn_config(){
-    for (int kernel = 1; kernel < kernel_id; kernel++){
-        for (int pc = 0; pc < 10000000; pc += 16) {
-            bool found = false;
-            for (const auto& item : PCid_Instn_Map) {
-                if (get<0>(item.first) == kernel && get<1>(item.first) == pc) {
-                    instn_config_fp << item.second << endl;
-                    found = true;
-                }
-            }
-            if (!found) {
-                break;
-            }
-        }
+    for (const auto& item : PCid_Instn_Map) {
+        instn_config_fp << item.second << endl;
     }
     instn_config_fp.close();
 }
@@ -507,6 +524,15 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
                 string file_name = "./sass_traces/kernel_"+ to_string(kernel_id) + ".sass";
                 insts_trace_fp.open(file_name);
+
+                if (!concurrentKernels.valid) {
+                    int device;
+                    cudaDeviceProp prop;
+                    CUDA_SAFECALL(cudaGetDevice(&device)); // get current device
+                    CUDA_SAFECALL(cudaGetDeviceProperties(&prop, device));
+                    concurrentKernels.true_or_false = prop.concurrentKernels;
+                    concurrentKernels.valid = true;
+                }
             } else {
                 /* make sure current kernel is completed */
                 cudaDeviceSynchronize();
@@ -640,7 +666,7 @@ void *recv_thread_fun(void *) {
                         if (it_map_pcid_instn == PCid_Instn_Map.end()){ // the first time <kernel_id, pc> occurs          // yangjianchao16 add
                             string Instn_string = "";                                                                     // yangjianchao16 add
                             /* kernel_id, pc */
-                            stringstream ss;                                                                         // yangjianchao16 add
+                            stringstream ss;                                                                              // yangjianchao16 add
                             ss << hex << ia->pc;                                                                          // yangjianchao16 add
                             Instn_string += to_string(kernel_id) + " " + ss.str() + " ";                                  // yangjianchao16 add
                             /* pred */
@@ -710,7 +736,7 @@ void *recv_thread_fun(void *) {
 
 
                 // bitset<32> mask(ia->active_mask & ia->predicate_mask);
-                if (ia->is_mem_inst == 1){
+                if (ia->is_mem_inst == 1 && ia->pred_off_threads != 32){
                     if (first_kernel_mem_clk == 0) {
                         kernel_mem_clk = ia->curr_clk;
                         first_kernel_mem_clk = 1;
@@ -729,9 +755,9 @@ void *recv_thread_fun(void *) {
                     
                     mem_trace_fp << hex << ia->pc << " ";
 
-                    // mem_trace_fp << id_to_opcode_map[ia->opcode_id] << " ";
+                    mem_trace_fp << id_to_opcode_map[ia->opcode_id] << " ";
 
-                    // mem_trace_fp << hex << (ia->active_mask & ia->predicate_mask) << " ";
+                    mem_trace_fp << hex << (ia->active_mask & ia->predicate_mask) << " ";
                     
                     mem_trace_fp << hex << int(ia->curr_clk) - int(kernel_mem_clk) << " ";
                     // for (int m = 0; m < 32; m++) {
