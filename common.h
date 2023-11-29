@@ -4,7 +4,7 @@
  * on the channel from the GPU to the CPU */
 typedef struct {
     int pred_inst;
-    int pred_active_threads;
+    int pred_off_threads;
     int pred_num;
     int sm_id;
     int cta_id_x;
