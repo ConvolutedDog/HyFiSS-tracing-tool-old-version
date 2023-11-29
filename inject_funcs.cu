@@ -52,7 +52,7 @@ extern "C" __device__ __noinline__ void instrument_inst(int pred, int pc, int op
     const int active_threads = __popc(active_mask);
 
     /* active threads that are not predicated off per instruction executed */
-    ia.pred_active_threads = active_threads - __popc(predicate_mask);
+    ia.pred_off_threads = active_threads - __popc(predicate_mask);
 
     if (is_mem_inst){
         /* collect memory address information from other threads */
