@@ -610,6 +610,7 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
                 inst_count = 0;
                 reg_dependency_map.clear();
                 pred_dependency_map.clear();
+
                 insts_trace_fp.close();
                 
                 pthread_mutex_unlock(&mutex);
@@ -680,25 +681,39 @@ void *recv_thread_fun(void *) {
                             Instn_string += id_to_opcode_map[ia->opcode_id] + " ";                                        // yangjianchao16 add
                             /* destination operands */
                             if (ia->dst_oprnd_type == 1){                                                                 // yangjianchao16 add
-                                Instn_string += "R" + to_string(ia->dst_oprnd) + " ";                                     // yangjianchao16 add
+                                Instn_string += "1 R" + to_string(ia->dst_oprnd) + " ";                                     // yangjianchao16 add
                             } else if (ia->dst_oprnd_type == 2){                                                          // yangjianchao16 add
-                                Instn_string += "P" + to_string(ia->dst_oprnd) + " ";                                     // yangjianchao16 add
+                                Instn_string += "1 P" + to_string(ia->dst_oprnd) + " ";                                     // yangjianchao16 add
                             } else if (ia->dst_oprnd_type == 3){                                                          // yangjianchao16 add
-                                Instn_string += "[R" + to_string(ia->dst_oprnd) + "] ";                                   // yangjianchao16 add
+                                Instn_string += "1 [R" + to_string(ia->dst_oprnd) + "] ";                                   // yangjianchao16 add
                             }                                                                                             // yangjianchao16 add
+                            else {
+                                Instn_string += "0 ";                                                                     // yangjianchao16 add
+                            }
                             /* src operands */
+                            int src_oprnds_num = 0;                                                                       // yangjianchao16 add
                             for (int i = 0; i < 5; i++){                                                                  // yangjianchao16 add
-                                if (ia->src_oprnds[i] != -1){                                                             // yangjianchao16 add
+                                if (ia->src_oprnds[i] > 0){                                                               // yangjianchao16 add
+                                    src_oprnds_num++;                                                                     // yangjianchao16 add
+                                }                                                                                         // yangjianchao16 add
+                            }                                                                                             // yangjianchao16 add
+                            Instn_string += to_string(src_oprnds_num) + " ";                                              // yangjianchao16 add
+                            for (int i = 0; i < 5; i++){                                                                  // yangjianchao16 add
+                                if (ia->src_oprnds[i] > 0){                                                               // yangjianchao16 add
                                     if (ia->src_oprnds_type[i] == 1 || ia->src_oprnds_type[i] == 3){                      // yangjianchao16 add
                                         Instn_string += "R" + to_string(ia->src_oprnds[i]) + " ";                         // yangjianchao16 add
                                     } else if (ia->src_oprnds_type[i] == 2){                                              // yangjianchao16 add
                                         Instn_string += "P" + to_string(ia->src_oprnds[i]) + " ";                         // yangjianchao16 add
                                     }                                                                                     // yangjianchao16 add
+                                    else {
+                                        Instn_string += "X" +  to_string(ia->src_oprnds[i]) + " ";                                                             // yangjianchao16 add
+                                    }
                                 }                                                                                         // yangjianchao16 add
                             }                                                                                             // yangjianchao16 add
                             PCid_Instn_Map[make_tuple(kernel_id, ia->pc)] = Instn_string;                                 // yangjianchao16 add
                         }                                                                                                 // yangjianchao16 add
 
+                        
                         // insts_trace_fp << "PC-0x" << hex << ia->pc << dec << " ";
                         // insts_trace_fp << "CLK-0x" << hex << ia->curr_clk << dec << " ";
                         // insts_trace_fp << "sm_id-" << ia->sm_id << " " 
@@ -708,7 +723,16 @@ void *recv_thread_fun(void *) {
                         //                << "warp_id-" << ia->warp_id<<" "
                         //                << "gwarp_id-" << ia->gwarp_id<<" ";
                         
-                        insts_trace_fp << hex << ia->pc << dec << " " << ia->gwarp_id << " ";
+                        uint32_t _active_mask = ia->active_mask & ia->predicate_mask;
+
+                        if (_active_mask == 0xffffffff)
+                            insts_trace_fp << hex << ia->pc << " " 
+                                           << hex << "! " 
+                                           << hex << ia->gwarp_id << " ";
+                        else 
+                            insts_trace_fp << hex << ia->pc << " " 
+                                           << hex << _active_mask << " " 
+                                           << hex << ia->gwarp_id << " ";
 
                         // /* opcode */
                         // insts_trace_fp<<id_to_opcode_map[ia->opcode_id]<<" ";
@@ -758,22 +782,101 @@ void *recv_thread_fun(void *) {
                     mem_trace_fp << id_to_opcode_map[ia->opcode_id] << " ";
 
                     mem_trace_fp << hex << (ia->active_mask & ia->predicate_mask) << " ";
-                    
+                    // mem_trace_fp << hex << (ia->active_mask) << " ";
+                    // mem_trace_fp << hex << (ia->predicate_mask) << " ";
+
                     mem_trace_fp << hex << int(ia->curr_clk) - int(kernel_mem_clk) << " ";
-                    // for (int m = 0; m < 32; m++) {
-                    //     if(ia->mem_addrs1[m]!=0){
-                    //         mem_trace_fp<<"0x"<<hex<<ia->mem_addrs1[m]<<" ";
-                    //     } 
-                    // }
-                    mem_trace_fp << hex << ia->mem_addrs1[0] << " ";
-                    // if (ia->mref_id == 2){
-                    //     for (int m = 0; m < 32; m++) {
-                    //         if(ia->mem_addrs2[m]!=0){
-                    //             mem_trace_fp << hex << ia->mem_addrs2[m]<<" ";
-                    //         } 
-                    //     }
-                    // }
-                    if (ia->mref_id == 2) mem_trace_fp << hex << ia->mem_addrs2[0] << " ";
+
+                    mem_trace_fp << hex << ia->mref_id << " ";
+                    
+                    //mem_trace_fp << hex << ia->mem_addrs1[0] << " ";
+                    vector<long long> stride1;
+                    for (int m = 0; m < 32; m++) {
+                        if (m == 0) {
+                            mem_trace_fp << "0x" << hex << ia->mem_addrs1[0] << " ";
+                        } else { 
+                            // mem_trace_fp << "0x" << hex << ia->mem_addrs1[m] << " "; // delete
+                            stride1.push_back(ia->mem_addrs1[m] - ia->mem_addrs1[m-1]);
+                            // mem_trace_fp << hex << ia->mem_addrs1[m] - ia->mem_addrs1[m-1] << " ";
+                        }
+                        // if(ia->mem_addrs1[m] != 0){
+                        //     mem_trace_fp << "0x" << hex << ia->mem_addrs1[m] << " ";
+                        // }
+                    }
+                    long long tmp_stride1 = stride1[0];
+                    int tmp_num1 = 1;
+                    vector<string> tmp_strings;
+                    std::stringstream ss1, ss2;
+                    for (unsigned _s = 1; _s < stride1.size(); _s++) {
+                        if (stride1[_s] == tmp_stride1) {
+                            tmp_num1++;
+                        } else {
+                            ss1.str(std::string());
+                            ss2.str(std::string());
+                            ss1 << hex << tmp_stride1;
+                            ss2 << hex << tmp_num1;
+                            // tmp_strings.push_back(ss1.str()+":"+ss2.str());
+                            tmp_strings.push_back(to_string(tmp_stride1)+":"+to_string(tmp_num1));
+                            // mem_trace_fp << tmp_stride1 << ":" << tmp_num1 << " ";
+                            tmp_stride1 = stride1[_s];
+                            tmp_num1 = 1;
+                        }
+                    }
+                    ss1.str(std::string());
+                    ss2.str(std::string());
+                    ss1 << hex << tmp_stride1;
+                    ss2 << hex << tmp_num1;
+                    // tmp_strings.push_back(ss1.str()+":"+ss2.str());
+                    tmp_strings.push_back(to_string(tmp_stride1)+":"+to_string(tmp_num1));
+                    mem_trace_fp << hex << tmp_strings.size() << " ";
+                    for (unsigned _s = 0; _s < tmp_strings.size(); _s++) {
+                        mem_trace_fp << tmp_strings[_s] << " ";
+                    }
+                    
+
+                    // if (ia->mref_id == 2) mem_trace_fp << hex << ia->mem_addrs2[0] << " ";
+                    vector<long long> stride2;
+                    if (ia->mref_id == 2){
+                        for (int m = 0; m < 32; m++) {
+                            if (m == 0) {
+                                mem_trace_fp << "0x" << hex << ia->mem_addrs2[0] << " ";
+                            } else  {
+                                stride2.push_back(ia->mem_addrs2[m] - ia->mem_addrs2[m-1]);
+                                // mem_trace_fp << hex << ia->mem_addrs2[m] - ia->mem_addrs2[m-1] << " ";
+                            }
+                            // if(ia->mem_addrs2[m] != 0){
+                            //     mem_trace_fp << hex << ia->mem_addrs2[m] << " ";
+                            // } 
+                        }
+                        long long tmp_stride2 = stride2[0];
+                        int tmp_num2 = 1;
+                        vector<string> tmp_strings;
+                        for (unsigned _s = 1; _s < stride2.size(); _s++) {
+                            if (stride2[_s] == tmp_stride2) {
+                                tmp_num2++;
+                            } else {
+                                ss1.str(std::string());
+                                ss2.str(std::string());
+                                ss1 << hex << tmp_stride2;
+                                ss2 << hex << tmp_num2;
+                                // tmp_strings.push_back(ss1.str()+":"+ss2.str());
+                                tmp_strings.push_back(to_string(tmp_stride2)+":"+to_string(tmp_num2));
+                                // mem_trace_fp << tmp_stride2 << ":" << tmp_num2 << " ";
+                                tmp_stride2 = stride2[_s];
+                                tmp_num2 = 1;
+                            }
+                        }
+                        ss1.str(std::string());
+                        ss2.str(std::string());
+                        ss1 << hex << tmp_stride2;
+                        ss2 << hex << tmp_num2;
+                        tmp_strings.push_back(to_string(tmp_stride2)+":"+to_string(tmp_num2));
+                        // tmp_strings.push_back(ss1.str()+":"+ss2.str());
+                        mem_trace_fp << hex << tmp_strings.size() << " ";
+                        for (unsigned _s = 0; _s < tmp_strings.size(); _s++) {
+                            mem_trace_fp << tmp_strings[_s] << " ";
+                        }
+                    }
                     mem_trace_fp << endl;
                     mem_trace_fp.close();
                 }
