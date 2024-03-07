@@ -1,4 +1,4 @@
-NVCC=/usr/local/cuda-11.8/bin/nvcc -ccbin=$(CXX) -D_FORCE_INLINES
+NVCC=/usr/local/cuda-11.8/bin/nvcc -ccbin=$(CXX) -D_FORCE_INLINES --compiler-options "-pipe"
 ARCH=70
 
 NVCC_VER_REQ=11.8
