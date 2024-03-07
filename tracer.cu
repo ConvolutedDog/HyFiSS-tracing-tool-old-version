@@ -59,6 +59,17 @@ struct concurrentKernelsProp {
 
 typedef unordered_map<int, int> int_int_map;
 
+#include <chrono>
+
+#define START_TIMER(no) auto start##no = std::chrono::system_clock::now();
+
+#define STOP_AND_REPORT_TIMER(no) \
+    auto end##no = std::chrono::system_clock::now(); \
+    auto duration##no = std::chrono::duration_cast<std::chrono::microseconds>(end##no - start##no); \
+    auto cost##no = double(duration##no.count()) * std::chrono::microseconds::period::num / std::chrono::microseconds::period::den; \
+    std::cout << "Cost " << no << " - " << cost##no << " seconds." << std::endl;
+
+
 // int_int_map bb_map;
 int kernel_id = 1;
 int bb_id = 0;
@@ -94,6 +105,7 @@ typedef map<int, vector<uint64_t>> SMid_CTAid_timestamp_Map_t;
 
 SMid_CTAid_timestamp_Map_t SMid_CTAid_timestamp_Map;
 
+map<tuple<int, int>, ofstream> mem_trace_fp_map; // yangjianchao16 add 0307
 
 // typedef map<int, list<tuple<int, int, int, int, int>>> PCid_CTAid_Map_t;
 
@@ -211,7 +223,7 @@ void dump_app_config(){
     app_config_fp << endl << "-device_concurrentKernels " << concurrentKernels.true_or_false << endl;
 
     app_config_fp.close();
-    cout << "--> sass + memory traces are collected for "<<(kernel_id - 1) << " kernels"<<"\n";
+    cout << "# Collected COMPUTE + MEMORY traces for "<<(kernel_id - 1) << " kernels"<<"\n";
 }
 
 /* set used to avoid re-instrumenting the same functions multiple times */
@@ -613,6 +625,10 @@ void nvbit_at_cuda_event(CUcontext ctx, int is_exit, nvbit_api_cuda_t cbid,
 
                 insts_trace_fp.close();
                 
+                for (auto it_map = mem_trace_fp_map.begin(); it_map != mem_trace_fp_map.end(); it_map++) {
+                    it_map->second.close();
+                }
+                
                 pthread_mutex_unlock(&mutex);
             }
     }
@@ -648,6 +664,8 @@ void *recv_thread_fun(void *) {
 
                 // if(ia->sm_id == current_sm_id && ia->cta_id_x == current_cta_id_x && ia->cta_id_y == current_cta_id_y && ia->cta_id_z == current_cta_id_z){
                         /* the SM id that every CTA is issued to */
+
+
                         auto it_map_smid_ctaid = SMid_CTAid_Map.find(ia->sm_id);                                          // yangjianchao16 add
                         auto it_map_smid_cta_id_timestamp = SMid_CTAid_timestamp_Map.find(ia->sm_id);                     // yangjianchao16 add
                         auto item_tuple = make_tuple(kernel_id, ia->cta_id_x, ia->cta_id_y, ia->cta_id_z);                // yangjianchao16 add
@@ -761,22 +779,48 @@ void *recv_thread_fun(void *) {
 
                 // bitset<32> mask(ia->active_mask & ia->predicate_mask);
                 if (ia->is_mem_inst == 1 && ia->pred_off_threads != 32){
+
+
+
                     if (first_kernel_mem_clk == 0) {
                         kernel_mem_clk = ia->curr_clk;
                         first_kernel_mem_clk = 1;
                     }
 
-                    ofstream mem_trace_fp;
+
+
+
+                    
 
                     /* calculate an index for the block the current mem reference belong to */
                     int index = ia->cta_id_z * kernel_gridY * kernel_gridX + kernel_gridX * ia->cta_id_y  + ia->cta_id_x;
 
                     string file_name = "./memory_traces/kernel_"+ to_string(kernel_id) + "_block_"+to_string(index)+".mem";
-                    mem_trace_fp.open(file_name, ios::app);
                     
+                    // map<tuple<int, int>, ofstream> mem_trace_fp_map; // yangjianchao16 add 0307
+                    ofstream* mem_trace_fp_ptr = nullptr;
+                    
+                    auto x = make_tuple(kernel_id, index);
+                    auto it_map = mem_trace_fp_map.find(x);
+                    if (it_map == mem_trace_fp_map.end()) { 
+                        ofstream& mem_trace_fp = mem_trace_fp_map.emplace(x, std::ofstream{}).first->second;
+                        mem_trace_fp.open(file_name, std::ios::app);
+                        mem_trace_fp_ptr = &mem_trace_fp;
+                    } else { 
+                        // ofstream& mem_trace_fp = it_map->second;
+                        mem_trace_fp_ptr = &(it_map->second);
+                    }
+
+                    auto& mem_trace_fp = *mem_trace_fp_ptr;
+
+                    // mem_trace_fp.open(file_name, ios::app); // MOSTLY CONSUME TIME
+
                     // mem_trace_fp << "\n=====\n";
                     // mem_trace_fp << id_to_opcode_map[ia->opcode_id] << " ";
-                    
+
+
+
+
                     mem_trace_fp << hex << ia->pc << " ";
 
                     mem_trace_fp << id_to_opcode_map[ia->opcode_id] << " ";
@@ -788,7 +832,8 @@ void *recv_thread_fun(void *) {
                     mem_trace_fp << hex << int(ia->curr_clk) - int(kernel_mem_clk) << " ";
 
                     mem_trace_fp << hex << ia->mref_id << " ";
-                    
+
+
                     //mem_trace_fp << hex << ia->mem_addrs1[0] << " ";
                     vector<long long> stride1;
                     for (int m = 0; m < 32; m++) {
@@ -832,7 +877,8 @@ void *recv_thread_fun(void *) {
                     for (unsigned _s = 0; _s < tmp_strings.size(); _s++) {
                         mem_trace_fp << tmp_strings[_s] << " ";
                     }
-                    
+
+
 
                     // if (ia->mref_id == 2) mem_trace_fp << hex << ia->mem_addrs2[0] << " ";
                     vector<long long> stride2;
@@ -878,9 +924,10 @@ void *recv_thread_fun(void *) {
                         }
                     }
                     mem_trace_fp << endl;
-                    mem_trace_fp.close();
+                    // mem_trace_fp.close(); // BUG
+
                 }
-                
+
                 num_processed_bytes += sizeof(inst_access_t);
             }  
         } 
